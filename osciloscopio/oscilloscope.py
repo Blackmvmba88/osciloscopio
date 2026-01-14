@@ -292,7 +292,7 @@ class DigitalOscilloscope:
         
         t = np.arange(len(data)) / self.sample_rate
         
-        # Guarda en formato CSV
+        # Save in CSV format
         np.savetxt(filename, np.column_stack((t, data)),
                   delimiter=',', header='Time(s),Amplitude(V)',
                   comments='')

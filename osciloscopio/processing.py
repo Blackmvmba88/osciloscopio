@@ -73,6 +73,8 @@ class SignalProcessor:
             Datos filtrados
         """
         nyquist = 0.5 * self.sample_rate
+        if cutoff >= nyquist:
+            raise ValueError(f"Cutoff frequency ({cutoff} Hz) must be less than Nyquist frequency ({nyquist} Hz)")
         normal_cutoff = cutoff / nyquist
         b, a = signal.butter(order, normal_cutoff, btype='low', analog=False)
         filtered_data = signal.filtfilt(b, a, data)
@@ -92,6 +94,8 @@ class SignalProcessor:
             Datos filtrados
         """
         nyquist = 0.5 * self.sample_rate
+        if cutoff >= nyquist:
+            raise ValueError(f"Cutoff frequency ({cutoff} Hz) must be less than Nyquist frequency ({nyquist} Hz)")
         normal_cutoff = cutoff / nyquist
         b, a = signal.butter(order, normal_cutoff, btype='high', analog=False)
         filtered_data = signal.filtfilt(b, a, data)
@@ -112,6 +116,10 @@ class SignalProcessor:
             Datos filtrados
         """
         nyquist = 0.5 * self.sample_rate
+        if highcut >= nyquist:
+            raise ValueError(f"High cutoff frequency ({highcut} Hz) must be less than Nyquist frequency ({nyquist} Hz)")
+        if lowcut >= highcut:
+            raise ValueError(f"Low cutoff ({lowcut} Hz) must be less than high cutoff ({highcut} Hz)")
         low = lowcut / nyquist
         high = highcut / nyquist
         b, a = signal.butter(order, [low, high], btype='band', analog=False)
@@ -133,6 +141,10 @@ class SignalProcessor:
             Datos filtrados
         """
         nyquist = 0.5 * self.sample_rate
+        if highcut >= nyquist:
+            raise ValueError(f"High cutoff frequency ({highcut} Hz) must be less than Nyquist frequency ({nyquist} Hz)")
+        if lowcut >= highcut:
+            raise ValueError(f"Low cutoff ({lowcut} Hz) must be less than high cutoff ({highcut} Hz)")
         low = lowcut / nyquist
         high = highcut / nyquist
         b, a = signal.butter(order, [low, high], btype='bandstop', analog=False)
