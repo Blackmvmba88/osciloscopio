@@ -45,3 +45,8 @@ htmlcov/
 *.csv
 *.dat
 data/
+
+# Generated images
+*.png
+*.jpg
+*.jpeg
