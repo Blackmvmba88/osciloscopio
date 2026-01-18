@@ -15,6 +15,9 @@ from .protocols import (
     ProtocolDecoder, UARTDecoder, I2CDecoder, SPIDecoder, CANDecoder,
     UARTFrame, I2CTransaction, SPITransaction, UARTParity, I2COperation
 )
+from .advanced_analysis import (
+    DigitalPersistence, AdvancedSpectralAnalysis, CalibrationSystem
+)
 
 __all__ = [
     'SignalSource',
@@ -42,4 +45,7 @@ __all__ = [
     'SPITransaction',
     'UARTParity',
     'I2COperation',
+    'DigitalPersistence',
+    'AdvancedSpectralAnalysis',
+    'CalibrationSystem',
 ]

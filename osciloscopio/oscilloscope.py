@@ -3,7 +3,7 @@ Módulo principal del osciloscopio digital: orquestador de todos los componentes
 """
 
 import numpy as np
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from .acquisition import SignalSource, HardwareSource, SimulatedSource
 from .processing import SignalProcessor, FilterType
 from .visualization import SignalVisualizer
@@ -11,6 +11,7 @@ from .analyzer import SignalAnalyzer
 from .trigger import TriggerSystem, TriggerType, TriggerMode
 from .multichannel import MultiChannelManager
 from .protocols import ProtocolDecoder
+from .advanced_analysis import DigitalPersistence, AdvancedSpectralAnalysis, CalibrationSystem
 
 
 class DigitalOscilloscope:
@@ -41,6 +42,9 @@ class DigitalOscilloscope:
         self.trigger = TriggerSystem(sample_rate)
         self.channels = MultiChannelManager(num_channels, sample_rate)
         self.protocol_decoder = ProtocolDecoder(sample_rate)
+        self.persistence = DigitalPersistence(sample_rate=sample_rate)
+        self.spectral = AdvancedSpectralAnalysis(sample_rate)
+        self.calibration = CalibrationSystem()
         
         # Inicializa la fuente de señales
         if source_type == 'hardware':
@@ -674,3 +678,218 @@ class DigitalOscilloscope:
         
         savemat(filename, mat_data)
         print(f"Datos exportados a MATLAB: {filename}")
+    
+    # ===== MÉTODOS DE ANÁLISIS AVANZADO =====
+    
+    def enable_persistence(self, width: int = 1000, height: int = 500):
+        """
+        Habilita el modo de persistencia digital.
+        
+        Args:
+            width: Ancho del buffer de persistencia
+            height: Altura del buffer
+            
+        Example:
+            osc.enable_persistence(1000, 500)
+            for i in range(100):
+                data = osc.capture(0.1)
+                osc.add_to_persistence(data)
+            stats = osc.get_persistence_stats()
+        """
+        self.persistence = DigitalPersistence(width, height, self.sample_rate)
+        print(f"Persistencia habilitada: {width}x{height}")
+    
+    def add_to_persistence(self, data: Optional[np.ndarray] = None, 
+                          decay: bool = True):
+        """
+        Añade una traza al buffer de persistencia.
+        
+        Args:
+            data: Datos a añadir (si None, usa raw_data)
+            decay: Aplicar decaimiento
+        """
+        if data is None:
+            data = self.raw_data
+        
+        if data is None:
+            print("No hay datos para añadir a persistencia")
+            return
+        
+        # Configurar rango automáticamente
+        self.persistence.set_range(np.min(data), np.max(data))
+        self.persistence.add_trace(data, decay)
+    
+    def get_persistence_stats(self) -> Dict[str, Any]:
+        """Obtiene estadísticas de persistencia."""
+        return self.persistence.get_statistics()
+    
+    def reset_persistence(self):
+        """Resetea el buffer de persistencia."""
+        self.persistence.reset()
+        print("Buffer de persistencia reseteado")
+    
+    def compute_stft(self, channel: int = 0, window_size: int = 256,
+                    overlap: int = 128) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Calcula el Short-Time Fourier Transform.
+        
+        Args:
+            channel: Canal a analizar
+            window_size: Tamaño de ventana
+            overlap: Solapamiento
+            
+        Returns:
+            Tupla (frecuencias, tiempos, espectrograma)
+            
+        Example:
+            f, t, Zxx = osc.compute_stft(0, window_size=256)
+            import matplotlib.pyplot as plt
+            plt.pcolormesh(t, f, 20*np.log10(Zxx))
+        """
+        data = self.channels.get_channel_data(channel)
+        if data is None:
+            data = self.raw_data
+        
+        if data is None:
+            print(f"No hay datos en canal {channel}")
+            return np.array([]), np.array([]), np.array([])
+        
+        return self.spectral.stft(data, window_size, overlap)
+    
+    def compute_welch_psd(self, channel: int = 0, window_size: int = 256) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calcula la densidad espectral de potencia (Welch).
+        
+        Args:
+            channel: Canal a analizar
+            window_size: Tamaño de ventana
+            
+        Returns:
+            Tupla (frecuencias, PSD)
+        """
+        data = self.channels.get_channel_data(channel)
+        if data is None:
+            data = self.raw_data
+        
+        if data is None:
+            print(f"No hay datos en canal {channel}")
+            return np.array([]), np.array([])
+        
+        return self.spectral.welch_psd(data, window_size)
+    
+    def harmonic_analysis(self, channel: int = 0, 
+                         fundamental_freq: Optional[float] = None,
+                         num_harmonics: int = 10) -> Dict[str, Any]:
+        """
+        Análisis de armónicos detallado.
+        
+        Args:
+            channel: Canal a analizar
+            fundamental_freq: Frecuencia fundamental (si None, se estima)
+            num_harmonics: Número de armónicos a analizar
+            
+        Returns:
+            Diccionario con análisis completo de armónicos
+            
+        Example:
+            result = osc.harmonic_analysis(0, fundamental_freq=50.0)
+            print(f"THD: {result['thd']:.4f}")
+            for h in result['harmonics']:
+                print(f"{h}: {result['harmonics'][h]['amplitude']:.4f}V")
+        """
+        data = self.channels.get_channel_data(channel)
+        if data is None:
+            data = self.raw_data
+        
+        if data is None:
+            print(f"No hay datos en canal {channel}")
+            return {}
+        
+        # Estimar frecuencia fundamental si no se proporciona
+        if fundamental_freq is None:
+            analysis = self.analyzer.analyze(data)
+            fundamental_freq = analysis.get('frequency', 1.0)
+        
+        return self.spectral.harmonic_analysis(data, fundamental_freq, num_harmonics)
+    
+    def calibrate(self, ground_signal: Optional[np.ndarray] = None,
+                 known_signal: Optional[np.ndarray] = None,
+                 known_amplitude: float = 1.0):
+        """
+        Calibra el osciloscopio.
+        
+        Args:
+            ground_signal: Medición con entrada en tierra (para offset)
+            known_signal: Señal de amplitud conocida (para ganancia)
+            known_amplitude: Amplitud real de la señal conocida
+            
+        Example:
+            # Calibrar offset
+            osc.capture_channel(0, 1.0)  # Con entrada en tierra
+            osc.calibrate(ground_signal=osc.raw_data)
+            
+            # Calibrar ganancia
+            osc.capture_channel(0, 1.0)  # Con señal de 5V conocida
+            osc.calibrate(known_signal=osc.raw_data, known_amplitude=5.0)
+        """
+        if ground_signal is not None:
+            self.calibration.calibrate_offset(ground_signal)
+        
+        if known_signal is not None:
+            self.calibration.calibrate_gain(known_signal, known_amplitude)
+        
+        print("Calibración completada")
+        print(f"Estado: {self.calibration.get_calibration_status()}")
+    
+    def apply_calibration_to_channel(self, channel: int):
+        """
+        Aplica calibración a un canal.
+        
+        Args:
+            channel: Canal a calibrar
+        """
+        data = self.channels.get_channel_data(channel)
+        if data is None:
+            print(f"No hay datos en canal {channel}")
+            return
+        
+        calibrated = self.calibration.apply_calibration(data)
+        self.channels.set_channel_data(channel, calibrated)
+        print(f"Calibración aplicada a canal {channel}")
+    
+    def set_noise_model(self, thermal: float = 0.01, 
+                       shot: float = 0.005,
+                       flicker: float = 0.002):
+        """
+        Configura el modelo de ruido.
+        
+        Args:
+            thermal: Nivel de ruido térmico
+            shot: Nivel de ruido shot
+            flicker: Nivel de ruido flicker (1/f)
+            
+        Example:
+            osc.set_noise_model(thermal=0.01, shot=0.005, flicker=0.002)
+        """
+        self.calibration.set_noise_levels(thermal, shot, flicker)
+        print(f"Modelo de ruido configurado")
+    
+    def get_system_status(self) -> Dict[str, Any]:
+        """
+        Obtiene el estado completo del sistema.
+        
+        Returns:
+            Diccionario con estado de todos los componentes
+        """
+        return {
+            'sample_rate': self.sample_rate,
+            'num_channels': self.num_channels,
+            'source_type': 'hardware' if isinstance(self.source, HardwareSource) else 'simulated',
+            'source_running': self.source.is_running(),
+            'trigger': self.trigger.get_status(),
+            'calibration': self.calibration.get_calibration_status(),
+            'channels': self.get_channel_info(),
+            'has_raw_data': self.raw_data is not None,
+            'has_processed_data': self.processed_data is not None,
+            'persistence_captures': self.persistence.num_captures,
+        }
