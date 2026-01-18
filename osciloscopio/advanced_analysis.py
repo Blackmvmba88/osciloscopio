@@ -6,6 +6,9 @@ import numpy as np
 from typing import Optional, Tuple, List, Dict, Any
 from scipy import signal as scipy_signal
 
+# Constantes
+EPSILON_SMALL = 1e-10  # Para evitar log(0) y divisiones por cero
+
 
 class DigitalPersistence:
     """
@@ -379,8 +382,8 @@ class AdvancedSpectralAnalysis:
                 harmonics[f'H{h}'] = {
                     'frequency': fft_freq[mask][idx],
                     'amplitude': float(amplitude),
-                    'amplitude_db': float(20 * np.log10(amplitude + 1e-10)),
-                    'relative_amplitude': float(amplitude / (fundamental_amplitude + 1e-10))
+                    'amplitude_db': float(20 * np.log10(amplitude + EPSILON_SMALL)),
+                    'relative_amplitude': float(amplitude / (fundamental_amplitude + EPSILON_SMALL))
                 }
         
         # Calcular THD
@@ -398,7 +401,7 @@ class AdvancedSpectralAnalysis:
             'fundamental_amplitude': float(fundamental_amplitude),
             'harmonics': harmonics,
             'thd': float(thd),
-            'thd_db': float(20 * np.log10(thd + 1e-10)),
+            'thd_db': float(20 * np.log10(thd + EPSILON_SMALL)),
             'num_harmonics': len(harmonics),
         }
 
@@ -483,7 +486,7 @@ class CalibrationSystem:
         # Ruido shot (Poisson)
         if shot and self.shot_noise_level > 0:
             # Aproximación: ruido Gaussiano proporcional a sqrt(señal)
-            shot_noise = np.random.normal(0, self.shot_noise_level, n) * np.sqrt(np.abs(data) + 1e-10)
+            shot_noise = np.random.normal(0, self.shot_noise_level, n) * np.sqrt(np.abs(data) + EPSILON_SMALL)
             noisy_data += shot_noise
         
         # Ruido flicker (1/f)
@@ -491,7 +494,7 @@ class CalibrationSystem:
             # Generar ruido 1/f en dominio de frecuencia
             fft_noise = np.fft.fft(np.random.randn(n))
             freqs = np.fft.fftfreq(n)
-            freqs[0] = 1e-10  # Evitar división por cero
+            freqs[0] = EPSILON_SMALL  # Evitar división por cero
             fft_noise = fft_noise / np.sqrt(np.abs(freqs))
             flicker_noise = np.real(np.fft.ifft(fft_noise))
             flicker_noise = flicker_noise / np.std(flicker_noise) * self.flicker_noise_level

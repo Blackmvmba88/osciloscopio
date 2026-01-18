@@ -613,7 +613,11 @@ class DigitalOscilloscope:
                 return
         
         # Normalizar a rango de 16-bit integer
-        data_normalized = np.int16(data / np.max(np.abs(data)) * 32767)
+        max_val = np.max(np.abs(data))
+        if max_val > 0:
+            data_normalized = np.int16(data / max_val * 32767)
+        else:
+            data_normalized = np.zeros(len(data), dtype=np.int16)
         
         # Guardar
         wavfile.write(filename, int(self.sample_rate), data_normalized)

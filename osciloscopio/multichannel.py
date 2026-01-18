@@ -296,8 +296,10 @@ class MultiChannelManager:
         elif operation == 'multiply':
             result = data_a * data_b
         elif operation == 'divide':
-            # Evitar división por cero
-            result = np.divide(data_a, data_b, where=data_b!=0, out=np.zeros_like(data_a))
+            # Evitar división por cero con epsilon
+            epsilon = 1e-10
+            with np.errstate(divide='ignore', invalid='ignore'):
+                result = np.where(np.abs(data_b) > epsilon, data_a / data_b, 0.0)
         else:
             raise ValueError(f"Operación no soportada: {operation}")
         

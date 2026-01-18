@@ -151,12 +151,16 @@ class UARTDecoder:
                 return UARTFrame(start_idx, data, False, False, "Missing parity bit")
             
             parity_bit = digital[parity_sample]
-            data_parity = bin(data).count('1') % 2
+            data_ones = bin(data).count('1')
+            
+            # Para EVEN parity: total de 1s (datos + parity bit) debe ser par
+            # Para ODD parity: total de 1s debe ser impar
+            total_ones = data_ones + parity_bit
             
             if self.parity == UARTParity.EVEN:
-                parity_ok = (data_parity == parity_bit)
+                parity_ok = (total_ones % 2 == 0)
             else:  # ODD
-                parity_ok = (data_parity != parity_bit)
+                parity_ok = (total_ones % 2 == 1)
             
             idx += self.samples_per_bit
         
@@ -179,7 +183,7 @@ class UARTDecoder:
         """Convierte frames a string."""
         try:
             return self.frames_to_bytes(frames).decode(encoding)
-        except:
+        except (UnicodeDecodeError, AttributeError):
             return ""
 
 
